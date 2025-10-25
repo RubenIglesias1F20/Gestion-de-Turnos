@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="es">
+
+<head>
+  <meta charset="UTF-8" />
+  <link rel="icon" href="/imagenes/relojIcono.png" type="image/png">
+  <title>Tablero de Turnos</title>
+  <style>
+    body {
+      font-family: system-ui, Arial;
+      margin: 0;
+      background: #f4f6f8
+    }
+
+    .bar {
+      background: #0a7;
+      color: #fff;
+      padding: 16px;
+      font-weight: 700
+    }
+
+    .row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 20px 24px;
+      margin: 8px;
+      font-size: 42px;
+      font-weight: 600;
+      border-radius: 12px;
+      /* Degradado de azul a verde */
+      background: linear-gradient(135deg, #326e9e, #2b9097);
+      color: #fff;
+      /* para que el texto resalte */
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+
+    .row:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 8px 12px rgba(0, 0, 0, 0.15);
+    }
+
+    .turno {
+      font-weight: 800
+    }
+  </style>
+</head>
+
+<body>
+  <div class="bar">CÓDIGO | NOMBRE | MÓDULO</div>
+  <div id="list"></div>
+  <script src="https://cdn.jsdelivr.net/npm/sockjs-client@1/dist/sockjs.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/stompjs@2.3.3/lib/stomp.min.js"></script>
+
+  <script>
+    const list = document.getElementById('list');
+    let items = []; //Array para los tickets
+    function render(items) {
+      list.innerHTML = items.map(it =>
+        `<div class="row">
+          <div class="turno">${it.codigo}</div>
+          <div>${it.nombreCompleto}</div>
+          <div>Módulo ${it.modulo}</div>
+        </div>`).join('');
+    }
+
+    //Cargar los ultimos 7 turnos de inicio
+    fetch('api/tickets/tablero/ultimos?restriccion=7').then(r => r.json()).then(data => {
+      items = data;
+      render(items);
+    })
+
+    //Configuar WebSocket
+    const sock = new SockJS('/ws');
+    const cliente = Stomp.over(sock);
+    cliente.connect({}, () => {
+      console.log("Conectado al Websocket")
+      cliente.subscribe('/topic/tablero', msg => {
+        console.log("Llego el mensaje: " + msg.body);
+        const ticket = JSON.parse(msg.body);
+        if (ticket.action === "refresh") {
+          fetch('api/tickets/tablero/ultimos?restriccion=7')
+            .then(r => r.json())
+            .then(data => {
+              items = data;
+              render(items);
+            });
+        } else {
+          items.unshift(ticket);
+          items = items.slice(0, 7);
+          render(items);
+          cliente.send("/app/actualizarTablero", {}, "Hola desde el cliente Tablero")
+        }
+      });
+      cliente.subscribe("/topic/tablero", msg =>{
+        console.log("Mensaje desde el servidor: ", msg.body);
+      })
+    });
+  </script>
+</body>
+
+</html>

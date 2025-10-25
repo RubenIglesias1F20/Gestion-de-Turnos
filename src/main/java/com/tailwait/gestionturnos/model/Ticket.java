@@ -31,6 +31,7 @@ public class Ticket {
     private Instant atendidos;
 
     private Integer moduloNumero;
+
     @ManyToOne
     private Persona persona;
 }
